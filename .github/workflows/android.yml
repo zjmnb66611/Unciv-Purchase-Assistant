@@ -1,0 +1,55 @@
+name: 购买助手构建
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: 21
+      - uses: android-actions/setup-android@v4
+      - uses: gradle/actions/setup-gradle@v6
+        with:
+          gradle-version: '9.4.1'
+      - name: 恢复私有签名
+        env:
+          SIGNING_STORE: ${{ secrets.UNCIV_ANDROID_SIGNING_STORE }}
+        run: |
+          test -n "$SIGNING_STORE"
+          printf '%s' "$SIGNING_STORE" | base64 --decode > assistant.jks
+      - name: 编译和识别策略测试
+        env:
+          UNCIV_SIGNING_PASSWORD: ${{ secrets.UNCIV_ANDROID_SIGNING_PASSWORD }}
+        run: gradle :app:testReleaseUnitTest :app:assembleRelease :app:lintRelease --no-daemon --stacktrace
+      - name: 核查签名、包名、权限和本地模型
+        run: |
+          mkdir -p dist
+          APK=app/build/outputs/apk/release/app-release.apk
+          TOOLS=$(find "$ANDROID_HOME/build-tools" -mindepth 1 -maxdepth 1 -type d | sort -V | tail -1)
+          "$TOOLS/apksigner" verify --verbose --print-certs "$APK" | tee dist/signature.txt
+          "$TOOLS/aapt" dump badging "$APK" | tee dist/package.txt
+          "$TOOLS/aapt" dump permissions "$APK" | tee dist/permissions.txt
+          grep "cn.zjmnb.uncivassistant" dist/package.txt
+          ! grep "android.permission.INTERNET" dist/permissions.txt
+          unzip -l "$APK" | tee dist/contents.txt
+          grep -E 'assets/.*(chinese|ocr|text)' dist/contents.txt
+          cp "$APK" dist/Unciv-Purchase-Assistant-0.1.0.apk
+          cd dist
+          sha256sum Unciv-Purchase-Assistant-0.1.0.apk > Unciv-Purchase-Assistant-0.1.0.apk.sha256.txt
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: unciv-purchase-assistant-0.1.0
+          path: |
+            dist/
+            app/build/reports/
+            app/build/test-results/
+          retention-days: 30
