@@ -2,6 +2,8 @@
 
 给现有原版Unciv增加外部悬浮批量购买入口，不包含游戏，不替换原版APK，不修改存档。预览版0.1.0，面向荣耀Magic7 / Android16，最低Android11。
 
+预览版下载入口：https://github.com/zjmnb66611/Unciv-Purchase-Assistant/releases/tag/v0.1.0 。APK文件名`Unciv-Purchase-Assistant-0.1.0.apk`，安装后应用名“Unciv 购买助手”，不是旧的“Unciv 队列购买”客户端。
+
 这是独立辅助工具，不是Unciv普通规则模组。安装到手机后，在系统设置中由用户手动启用无障碍；不需要Root。只操作包名`com.unciv.app`的原版Unciv。内置ML Kit中文/英文OCR模型，截图只在内存中识别，不保存、不上传；合并后的Manifest移除网络权限。
 
 ## 安装与首次校准

@@ -54,7 +54,7 @@ public final class PurchaseService extends AccessibilityService {
     private WindowManager.LayoutParams toolbarParams;
     private View calibrationView;
     private AlertDialog review;
-    private boolean wanted, busy, calibrating;
+    private boolean wanted, busy, calibrating, capturing;
     private int epoch, calibrationStep;
     private long lastScreenshot, committed;
     private int purchased;
@@ -125,7 +125,7 @@ public final class PurchaseService extends AccessibilityService {
         if (toolbar == null || calibrating) return;
         boolean game = gameForeground();
         if (!game && busy) stop("已离开原版Unciv，操作中止。若刚确认过购买，请检查游戏队列后再开始。");
-        toolbar.setVisibility(wanted && game ? View.VISIBLE : View.GONE);
+        toolbar.setVisibility(wanted && game && !capturing ? View.VISIBLE : View.GONE);
     }
     @Override public void onInterrupt() { stop("系统中断无障碍，操作停止。"); }
     @Override public void onConfigurationChanged(Configuration config) {
@@ -187,7 +187,7 @@ public final class PurchaseService extends AccessibilityService {
         removeCalibration();
     }
     private void stop(String reason) {
-        epoch++; busy = false;
+        epoch++; busy = false; capturing = false;
         if (review != null) { review.dismiss(); review = null; }
         if (calibration != null) calibration.report(reason + "\n已通过队列变化验证购买：" + purchased + "项\n确认价格累计：" + committed + "金币\n" + String.join("\n", log));
         if (status != null) status.setText(reason.length() > 30 ? reason.substring(0,30) + "…" : reason);
@@ -204,6 +204,7 @@ public final class PurchaseService extends AccessibilityService {
     private void rawScreenshot(int token, Consumer<Bitmap> callback) {
         if (!valid(token)) return;
         long wait = Math.max(100, 500 - (SystemClock.uptimeMillis() - lastScreenshot));
+        capturing = true;
         if (toolbar != null) toolbar.setVisibility(View.INVISIBLE);
         later(token, wait, () -> {
             lastScreenshot = SystemClock.uptimeMillis();
@@ -214,15 +215,23 @@ public final class PurchaseService extends AccessibilityService {
                     try {
                         hardware = Bitmap.wrapHardwareBuffer(buffer, result.getColorSpace());
                         if (hardware != null) bitmap = hardware.copy(Bitmap.Config.ARGB_8888, false);
+                    } catch (RuntimeException ignored) {
+                        // 返回空图像并停止，不在截图失败后继续任何点击。
                     } finally { if (hardware != null) hardware.recycle(); buffer.close(); }
-                    if (toolbar != null && wanted && gameForeground()) toolbar.setVisibility(View.VISIBLE);
+                    if (epoch == token) {
+                        capturing = false;
+                        if (toolbar != null && wanted && gameForeground()) toolbar.setVisibility(View.VISIBLE);
+                    }
                     if (!valid(token)) { if (bitmap != null) bitmap.recycle(); return; }
                     if (bitmap == null) { stop("系统未提供可读截图，停止。"); return; }
                     callback.accept(bitmap);
                 }
                 @Override public void onFailure(int code) {
-                    if (toolbar != null && wanted) toolbar.setVisibility(View.VISIBLE);
-                    if (epoch == token) stop("截图失败（系统代码" + code + "），未继续点击。");
+                    if (epoch == token) {
+                        capturing = false;
+                        if (toolbar != null && wanted) toolbar.setVisibility(View.VISIBLE);
+                        stop("截图失败（系统代码" + code + "），未继续点击。");
+                    }
                 }
             });
         });
