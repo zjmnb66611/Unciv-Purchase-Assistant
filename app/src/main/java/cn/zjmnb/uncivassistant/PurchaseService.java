@@ -59,6 +59,7 @@ public final class PurchaseService extends AccessibilityService {
     private long lastScreenshot, committed;
     private int purchased;
     private String cityIdentity = "";
+    private Rect queueViewport;
     private final List<String> log = new ArrayList<>();
 
     private static final class SeenLine {
@@ -254,7 +255,7 @@ public final class PurchaseService extends AccessibilityService {
     }
     private void tap(int token, Rect rect, Runnable after) { gesture(token, rect.centerX(), rect.centerY(), rect.centerX(), rect.centerY(), 70, after); }
     private void scrollQueue(int token, boolean down, Runnable after) {
-        Rect r = calibration.get("queue");
+        Rect r = queueViewport == null ? calibration.get("queue") : queueViewport;
         float top = r.top + r.height() * .25f, bottom = r.top + r.height() * .70f;
         gesture(token, r.centerX(), down ? bottom : top, r.centerX(), down ? top : bottom, 420, after);
     }
@@ -269,8 +270,30 @@ public final class PurchaseService extends AccessibilityService {
     }
     private List<SeenLine> queueLines(Frame frame) {
         ArrayList<SeenLine> found = new ArrayList<>();
-        for (SeenLine line : frame.inside(calibration.get("queue"))) if (PurchasePolicy.isQueueName(line.text)) found.add(line);
+        for (SeenLine line : frame.inside(queueRegion(frame))) if (PurchasePolicy.isQueueName(line.text)) found.add(line);
         return found;
+    }
+    /** 队列变短时购买栏、可建目录会上移，不能继续扫描到目录里的项目。 */
+    private Rect queueRegion(Frame frame) {
+        Rect region = new Rect(calibration.get("queue"));
+        for (SeenLine line : frame.lines) {
+            if (line.bounds.left >= region.right || line.bounds.right <= region.left || line.bounds.top <= region.top) continue;
+            if (PurchasePolicy.queueFooter(line.text)) region.bottom = Math.min(region.bottom, line.bounds.top - dp(6));
+        }
+        region.bottom = Math.max(region.top + dp(20), region.bottom);
+        queueViewport = region;
+        return region;
+    }
+    /** 原版购买按钮的Y坐标会随队列高度变化，X坐标仍由用户指定的金币栏约束。 */
+    private Rect buyRegion(Frame frame) {
+        Rect sample = calibration.get("buy");
+        for (SeenLine line : frame.lines) {
+            if (!PurchasePolicy.hasBuyWord(line.text) || line.bounds.left >= sample.right || line.bounds.right <= sample.left) continue;
+            int top = Math.max(0, line.bounds.centerY() - sample.height()/2);
+            Rect r = new Rect(sample.left, top, sample.right, Math.min(frame.bitmap.getHeight(), top + sample.height()));
+            if (frame.gold(r) && PurchasePolicy.buttonPrice(frame.text(r)) >= 0) return r;
+        }
+        return null;
     }
     private List<String> names(Frame frame) {
         ArrayList<String> found = new ArrayList<>();
@@ -279,14 +302,14 @@ public final class PurchaseService extends AccessibilityService {
     }
     private String pageKey(Frame frame) {
         StringBuilder key = new StringBuilder();
-        for (SeenLine line : frame.inside(calibration.get("queue"))) key.append(PurchasePolicy.normalized(line.text)).append('@').append(Math.round(line.bounds.top/12f)).append(';');
+        for (SeenLine line : frame.inside(queueRegion(frame))) key.append(PurchasePolicy.normalized(line.text)).append('@').append(Math.round(line.bounds.top/12f)).append(';');
         return key.toString();
     }
     private void moveTop(int token, int attempt, Runnable callback) {
         screenshot(token, frame -> {
             if (!checkCity(frame)) return;
             if (purchaseDialog(frame)) { stop("请先手动取消游戏购买弹窗，再开始。"); return; }
-            String text = PurchasePolicy.normalized(frame.text(calibration.get("queue")));
+            String text = PurchasePolicy.normalized(frame.text(queueRegion(frame)));
             if (text.contains("当前项目") || text.contains("currentconstruction")) { callback.run(); return; }
             if (attempt >= 9) { stop("未找到队列顶部“当前项目”，请重新框选队列区域并展开队列。"); return; }
             scrollQueue(token, false, () -> moveTop(token, attempt+1, callback));
@@ -352,9 +375,10 @@ public final class PurchaseService extends AccessibilityService {
         moveTop(token, 0, () -> find(token, target, "", 0, row -> {
             tap(token, row, () -> screenshot(token, frame -> {
                 if (!checkCity(frame)) return;
-                String buyText = frame.text(calibration.get("buy"));
+                Rect buy = buyRegion(frame);
+                String buyText = buy == null ? "" : frame.text(buy);
                 long price = PurchasePolicy.buttonPrice(buyText);
-                if (!PurchasePolicy.hasBuyWord(buyText) || price < 0 || !frame.gold(calibration.get("buy"))) {
+                if (buy == null || !PurchasePolicy.hasBuyWord(buyText) || price < 0 || !frame.gold(buy)) {
                     log.add(target + "：没有明确的金币购买按钮，跳过");
                     process(token, plan, remaining, index+1); return;
                 }
@@ -362,7 +386,7 @@ public final class PurchaseService extends AccessibilityService {
                     stop("下一项目超过本次预算上限，已停止。"); return;
                 }
                 String background = PurchasePolicy.normalized(frame.text(calibration.get("dialog")));
-                tap(token, calibration.get("buy"), () -> awaitDialog(token, target, price, background, 0, () -> {
+                tap(token, buy, () -> awaitDialog(token, target, price, background, 0, () -> {
                     // 不重试确认点击。即使回执不明确，也必须停止、让用户检查游戏状态。
                     committed += price;
                     tap(token, calibration.get("confirm"), () -> screenshot(token, after -> {

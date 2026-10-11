@@ -25,4 +25,5 @@ public final class PurchasePolicyTest {
     @Test public void rejectsDiscontinuousPage() { assertNull(PurchasePolicy.mergePages(List.of("市场"),List.of("大学"))); }
     @Test public void queueChangeRequiresMultiplicityAndOrder() { assertFalse(PurchasePolicy.sameQueue(List.of("坦克","坦克"),List.of("坦克"))); assertFalse(PurchasePolicy.sameQueue(List.of("市场","坦克"),List.of("坦克","市场"))); }
     @Test public void normalizationDoesNotTreatDistinctAircraftAsSame() { assertFalse(PurchasePolicy.sameQueue(List.of("歼36"),List.of("歼35"))); }
+    @Test public void neverTreatsAvailableCatalogHeadersAsQueueEntries() { assertTrue(PurchasePolicy.queueFooter("建筑")); assertFalse(PurchasePolicy.isQueueName("单位")); assertFalse(PurchasePolicy.isQueueName("选择建造目标")); }
 }

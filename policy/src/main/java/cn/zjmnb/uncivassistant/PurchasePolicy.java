@@ -18,13 +18,17 @@ public final class PurchasePolicy {
         String n = normalized(text);
         if (n.isEmpty() || !n.matches(".*\\p{L}.*")) return false;
         if (n.matches(".*(回合| turns?|金币|消耗|剩余|需要|维护).*")) return false;
-        if (n.matches("(当前项目|等待中的项目|生产队列|当前建造|队列|队列为空|选择建造项目|闲置|金钱|科研|currentconstruction|constructionqueue|queueempty|pickaconstruction|gold|science|nothing)")) return false;
+        if (n.matches("(当前项目|等待中的项目|生产队列|当前建造|队列|队列为空|选择建造目标|选择建造项目|闲置|金钱|科研|单位|建筑|奇观|国家奇观|其他|已关闭|currentconstruction|constructionqueue|queueempty|pickaconstruction|gold|science|nothing|units|buildings|wonders|nationalwonders|other|disabled)")) return false;
         // 英文倒计时与资源消耗行通常以数字起头；歼36等名称仍能通过。
         return !n.matches("^[0-9].*");
     }
     public static boolean hasBuyWord(String text) {
         String n = normalized(text);
         return n.contains("购买") || n.startsWith("buy") || n.equals("purchase");
+    }
+    public static boolean queueFooter(String text) {
+        String n = normalized(text);
+        return hasBuyWord(text) || n.matches("(单位|建筑|奇观|国家奇观|其他|已关闭|units|buildings|wonders|nationalwonders|other|disabled)");
     }
     public static long buttonPrice(String text) {
         Matcher m = Pattern.compile("(?:购买|Buy|Purchase)\\s*([0-9][0-9,， ]*)", Pattern.CASE_INSENSITIVE).matcher(text);

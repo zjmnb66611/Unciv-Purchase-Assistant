@@ -25,6 +25,6 @@
 
 包含独立识别策略单元测试、Android编译、Lint、APK签名与权限校验。尚未完成用户Magic7实机的截图、OCR、校准及实际购买验证，不宣称已实机成功。这是待校准预览版。
 
-构建：Java21、Gradle9.4.1、Android SDK36、AGP9.2.0。`gradle :app:testReleaseUnitTest :app:assembleRelease :app:lintRelease`。发布签名库从仓库加密Secrets恢复；不包含签名私钥。
+构建：Java21、Gradle9.4.1、Android SDK36、AGP9.2.0。`gradle :policy:test :app:assembleRelease :app:lintRelease`。识别和购买判断逻辑位于独立Java模块policy，应用直接依赖相同模块；测试不依赖Android界面或模拟器。发布签名库从仓库加密Secrets恢复；不包含签名私钥。
 
 原版游戏：https://github.com/yairm210/Unciv 。本工具与其开发者无隶属关系。

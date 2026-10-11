@@ -28,7 +28,7 @@ jobs:
       - name: 编译和识别策略测试
         env:
           UNCIV_SIGNING_PASSWORD: ${{ secrets.UNCIV_ANDROID_SIGNING_PASSWORD }}
-        run: gradle :app:testReleaseUnitTest :app:assembleRelease :app:lintRelease --no-daemon --stacktrace
+        run: gradle :policy:test :app:assembleRelease :app:lintRelease --no-daemon --stacktrace
       - name: 核查签名、包名、权限和本地模型
         run: |
           mkdir -p dist
@@ -52,4 +52,6 @@ jobs:
             dist/
             app/build/reports/
             app/build/test-results/
+            policy/build/reports/
+            policy/build/test-results/
           retention-days: 30
